@@ -1,0 +1,257 @@
+package com.example.calorietrack
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.calorietrack.room.CalorieTrackDatabase
+import com.example.calorietrack.ui.theme.CalorieTrackTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class DashboardActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            CalorieTrackTheme {
+                DashboardScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardScreen() {
+    val context = LocalContext.current
+    val db = remember { CalorieTrackDatabase.getInstance(context) }
+
+    // State loaded from Room
+    var dailyGoal by remember { mutableStateOf(120f) }
+    var consumedToday by remember { mutableStateOf(0f) }
+    var mealsLoggedToday by remember { mutableStateOf(0) }
+
+    // Use SimpleDateFormat instead of LocalDate for wider Android support
+    val today = remember {
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    }
+
+    LaunchedEffect(Unit) {
+        val profile = db.userProfileDao().getProfile()
+        dailyGoal = (profile?.dailyGoalProteinGrams ?: 120).toFloat()
+
+        consumedToday = (db.mealDao().getTotalProteinForDate(today) ?: 0).toFloat()
+        mealsLoggedToday = db.mealDao().getMealsForDate(today).size
+    }
+
+    val progress = if (dailyGoal > 0f) {
+        (consumedToday / dailyGoal).coerceIn(0f, 1f)
+    } else 0f
+
+    val remaining = (dailyGoal - consumedToday).coerceAtLeast(0f)
+
+    val gradient = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF4CAF50),
+            Color(0xFF81C784),
+            Color(0xFFA5D6A7)
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(gradient)
+            .statusBarsPadding()
+            .padding(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            // Header / greeting
+            Text(
+                text = "Your Daily Overview",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier
+                    .padding(bottom = 4.dp)
+            )
+
+            Text(
+                text = "Stay on track with your protein goal",
+                fontSize = 16.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Main daily protein card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Today's Protein",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "${consumedToday.toInt()} g",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "of ${dailyGoal.toInt()} g goal",
+                        fontSize = 16.sp,
+                        color = Color.Gray
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "${(progress * 100).toInt()}% of goal reached",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick stats row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Remaining",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${remaining.toInt()} g",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Meals Logged",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = mealsLoggedToday.toString(),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Quick actions
+            Text(
+                text = "Quick actions",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(start = 4.dp, bottom = 8.dp)
+            )
+
+            Button(
+                onClick = {
+                    val intent = Intent(context, AddMealActivity::class.java)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(text = "Capture / Add Meal")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    val intent = Intent(context, MealHistoryActivity::class.java)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(text = "View Meal History")
+            }
+        }
+    }
+}
