@@ -1,18 +1,21 @@
 package com.example.calorietrack
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
 import java.text.SimpleDateFormat
@@ -46,12 +50,43 @@ fun DashboardScreen() {
     val context = LocalContext.current
     val db = remember { CalorieTrackDatabase.getInstance(context) }
 
+    // ✅ Permission launcher (shows system popup)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Toast.makeText(context, "Camera permission granted ", Toast.LENGTH_SHORT).show()
+
+            // OPTIONAL: open a camera screen if you have one
+            // context.startActivity(Intent(context, CameraActivity::class.java))
+
+        } else {
+            Toast.makeText(context, "Camera permission denied ", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun requestCameraPermission() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (granted) {
+            Toast.makeText(context, "Camera already allowed ", Toast.LENGTH_SHORT).show()
+
+            // OPTIONAL: open camera screen
+            // context.startActivity(Intent(context, CameraActivity::class.java))
+
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     // State loaded from Room
     var dailyGoal by remember { mutableStateOf(120f) }
     var consumedToday by remember { mutableStateOf(0f) }
     var mealsLoggedToday by remember { mutableStateOf(0) }
 
-    // Use SimpleDateFormat instead of LocalDate for wider Android support
     val today = remember {
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     }
@@ -64,10 +99,7 @@ fun DashboardScreen() {
         mealsLoggedToday = db.mealDao().getMealsForDate(today).size
     }
 
-    val progress = if (dailyGoal > 0f) {
-        (consumedToday / dailyGoal).coerceIn(0f, 1f)
-    } else 0f
-
+    val progress = if (dailyGoal > 0f) (consumedToday / dailyGoal).coerceIn(0f, 1f) else 0f
     val remaining = (dailyGoal - consumedToday).coerceAtLeast(0f)
 
     val gradient = Brush.verticalGradient(
@@ -86,44 +118,50 @@ fun DashboardScreen() {
             .padding(16.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // Header / greeting
-            Text(
-                text = "Your Daily Overview",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier
-                    .padding(bottom = 4.dp)
-            )
+            //  TOP BAR: Title + Camera button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Your Daily Overview",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    Text(
+                        text = "Stay on track with your protein goal",
+                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        textAlign = TextAlign.Start
+                    )
+                }
 
-            Text(
-                text = "Stay on track with your protein goal",
-                fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.9f),
-                textAlign = TextAlign.Center
-            )
+                IconButton(onClick = { requestCameraPermission() }) {
+                    Icon(
+                        imageVector = Icons.Filled.CameraAlt,
+                        contentDescription = "Camera",
+                        tint = Color.White
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // Main daily protein card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(),
-            ) {
+            Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier
-                        .padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Today's Protein",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text(text = "Today's Protein", style = MaterialTheme.typography.titleMedium)
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -167,20 +205,12 @@ fun DashboardScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                ) {
+                Card(modifier = Modifier.weight(1f)) {
                     Column(
-                        modifier = Modifier
-                            .padding(12.dp),
+                        modifier = Modifier.padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "Remaining",
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
+                        Text(text = "Remaining", fontSize = 14.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${remaining.toInt()} g",
@@ -190,20 +220,12 @@ fun DashboardScreen() {
                     }
                 }
 
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                ) {
+                Card(modifier = Modifier.weight(1f)) {
                     Column(
-                        modifier = Modifier
-                            .padding(12.dp),
+                        modifier = Modifier.padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "Meals Logged",
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
+                        Text(text = "Meals Logged", fontSize = 14.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = mealsLoggedToday.toString(),
@@ -216,7 +238,6 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Quick actions
             Text(
                 text = "Quick actions",
                 fontSize = 18.sp,

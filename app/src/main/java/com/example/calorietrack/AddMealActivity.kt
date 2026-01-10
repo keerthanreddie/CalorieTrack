@@ -1,4 +1,3 @@
-// AddMealActivity.kt
 package com.example.calorietrack
 
 import android.app.Activity
@@ -10,9 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +42,10 @@ class AddMealActivity : ComponentActivity() {
 
 @Composable
 fun AddMealScreen() {
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+
     val gradient = Brush.verticalGradient(
         colors = listOf(
             Color(0xFF4CAF50),
@@ -54,7 +57,6 @@ fun AddMealScreen() {
     var name by remember { mutableStateOf("") }
     var proteinText by remember { mutableStateOf("") }
 
-    val context = LocalContext.current
     val db = remember { CalorieTrackDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
 
@@ -63,20 +65,32 @@ fun AddMealScreen() {
             .fillMaxSize()
             .background(gradient)
             .statusBarsPadding()
-            .padding(16.dp),
-        contentAlignment = Alignment.TopCenter
+            .padding(16.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.fillMaxWidth()
         ) {
+
+            // 🔙 Back Button
+            IconButton(
+                onClick = { activity?.finish() },
+                modifier = Modifier.align(Alignment.Start)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "Add Meal",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.White,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -113,8 +127,8 @@ fun AddMealScreen() {
                                     date = today
                                 )
                             )
-                            // Close screen and return to Dashboard
-                            (context as? Activity)?.finish()
+                            // Return to Dashboard
+                            activity?.finish()
                         }
                     }
                 },
