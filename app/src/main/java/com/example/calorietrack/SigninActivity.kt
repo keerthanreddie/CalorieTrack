@@ -167,7 +167,7 @@ fun SignInScreen() {
                         .addOnCompleteListener { task ->
                             isLoading = false
                             if (task.isSuccessful) {
-                                Toast.makeText(context, "Signed in ✅", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Signed in ", Toast.LENGTH_SHORT).show()
 
                                 val intent = Intent(context, DashboardActivity::class.java)
                                 intent.flags =

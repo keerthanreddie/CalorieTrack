@@ -37,12 +37,12 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 var showSplash by remember { mutableStateOf(true) }
 
-                // ✅ This is the ONLY place GDPR is checked
+                //  This is the ONLY place GDPR is checked
                 var gdprAccepted by remember {
                     mutableStateOf(prefs.getBoolean("gdpr_accepted", false))
                 }
 
-                // ✅ Show splash first
+                //  Show splash first
                 LaunchedEffect(Unit) {
                     delay(2500)
                     showSplash = false
