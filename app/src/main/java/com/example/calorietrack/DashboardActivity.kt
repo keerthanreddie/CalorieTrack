@@ -57,12 +57,12 @@ fun DashboardScreen() {
     val scope = rememberCoroutineScope()
     val auth = remember { FirebaseAuth.getInstance() }
 
-    // ✅ Get logged in user id
-    val userId = remember { auth.currentUser?.uid }
+    // ✅ Always read current user from auth (so it stays correct after logout/login)
+    val currentUserId = auth.currentUser?.uid
 
     // If not logged in, go back to SigninActivity
-    LaunchedEffect(userId) {
-        if (userId == null) {
+    LaunchedEffect(currentUserId) {
+        if (currentUserId == null) {
             Toast.makeText(context, "Please sign in again.", Toast.LENGTH_SHORT).show()
             val intent = Intent(context, SigninActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -84,12 +84,19 @@ fun DashboardScreen() {
         activity?.finish()
     }
 
+    // ✅ Open Camera screen (or placeholder screen)
+    fun openCameraScreen() {
+        val intent = Intent(context, CameraPreviewActivity::class.java)
+        context.startActivity(intent)
+    }
+
     // ✅ Permission launcher (camera)
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             Toast.makeText(context, "Camera permission granted", Toast.LENGTH_SHORT).show()
+            openCameraScreen() // ✅ now permission is actually used
         } else {
             Toast.makeText(context, "Camera permission denied", Toast.LENGTH_SHORT).show()
         }
@@ -102,7 +109,7 @@ fun DashboardScreen() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (granted) {
-            Toast.makeText(context, "Camera already allowed", Toast.LENGTH_SHORT).show()
+            openCameraScreen() // ✅ open directly if already granted
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }

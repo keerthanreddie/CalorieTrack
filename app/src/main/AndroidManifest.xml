@@ -40,6 +40,9 @@
         <activity
             android:name=".MealHistoryActivity"
             android:exported="true"/>
+        <activity
+            android:name=".CameraPreviewActivity"
+            android:exported="true"/>
     </application>
 
 </manifest>
