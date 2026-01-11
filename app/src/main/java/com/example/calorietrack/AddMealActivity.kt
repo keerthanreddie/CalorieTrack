@@ -2,6 +2,7 @@ package com.example.calorietrack
 
 import android.app.Activity
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,7 +27,9 @@ import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.room.Meal
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
 import kotlinx.coroutines.launch
-import java.time.LocalDate
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AddMealActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,9 +59,15 @@ fun AddMealScreen() {
 
     var name by remember { mutableStateOf("") }
     var proteinText by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
     val db = remember { CalorieTrackDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
+
+    // ✅ Use SimpleDateFormat for broader Android support
+    val today = remember {
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    }
 
     Box(
         modifier = Modifier
@@ -67,68 +76,96 @@ fun AddMealScreen() {
             .statusBarsPadding()
             .padding(16.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
 
-            // 🔙 Back Button
-            IconButton(
-                onClick = { activity?.finish() },
-                modifier = Modifier.align(Alignment.Start)
+            // 🔝 Top bar: Back + Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White
+                IconButton(onClick = { activity?.finish() }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+
+                Text(
+                    text = "Add Meal",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(start = 8.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Add Meal",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                    errorText = null
+                },
                 label = { Text("Meal name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = proteinText,
-                onValueChange = { proteinText = it },
+                onValueChange = {
+                    // keep only digits (optional safety)
+                    proteinText = it.filter { ch -> ch.isDigit() }
+                    errorText = null
+                },
                 label = { Text("Protein (g)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
+
+            if (errorText != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = errorText!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
                     val protein = proteinText.toIntOrNull()
-                    if (name.isNotBlank() && protein != null && protein > 0) {
-                        scope.launch {
-                            val today = LocalDate.now().toString()
-                            db.mealDao().insertMeal(
-                                Meal(
-                                    name = name,
-                                    proteinGrams = protein,
-                                    date = today
+
+                    when {
+                        name.trim().isEmpty() -> {
+                            errorText = "Please enter a meal name."
+                        }
+                        protein == null || protein <= 0 -> {
+                            errorText = "Please enter a valid protein amount greater than 0."
+                        }
+                        else -> {
+                            scope.launch {
+                                db.mealDao().insertMeal(
+                                    Meal(
+                                        name = name.trim(),
+                                        proteinGrams = protein,
+                                        date = today
+                                    )
                                 )
-                            )
-                            // Return to Dashboard
-                            activity?.finish()
+
+                                Toast.makeText(context, "Meal saved ", Toast.LENGTH_SHORT).show()
+
+                                //  IMPORTANT: tell Dashboard to refresh
+                                activity?.setResult(Activity.RESULT_OK)
+                                activity?.finish()
+                            }
                         }
                     }
                 },

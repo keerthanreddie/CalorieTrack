@@ -1,6 +1,7 @@
 package com.example.calorietrack
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,19 +51,16 @@ class DashboardActivity : ComponentActivity() {
 fun DashboardScreen() {
     val context = LocalContext.current
     val db = remember { CalorieTrackDatabase.getInstance(context) }
+    val scope = rememberCoroutineScope()
 
-    // ✅ Permission launcher (shows system popup)
+    // ✅ Permission launcher (camera)
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            Toast.makeText(context, "Camera permission granted ", Toast.LENGTH_SHORT).show()
-
-            // OPTIONAL: open a camera screen if you have one
-            // context.startActivity(Intent(context, CameraActivity::class.java))
-
+            Toast.makeText(context, "Camera permission granted", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Camera permission denied ", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Camera permission denied", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -72,17 +71,13 @@ fun DashboardScreen() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (granted) {
-            Toast.makeText(context, "Camera already allowed ", Toast.LENGTH_SHORT).show()
-
-            // OPTIONAL: open camera screen
-            // context.startActivity(Intent(context, CameraActivity::class.java))
-
+            Toast.makeText(context, "Camera already allowed", Toast.LENGTH_SHORT).show()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
-    // State loaded from Room
+    // ✅ Dashboard state
     var dailyGoal by remember { mutableStateOf(120f) }
     var consumedToday by remember { mutableStateOf(0f) }
     var mealsLoggedToday by remember { mutableStateOf(0) }
@@ -91,12 +86,29 @@ fun DashboardScreen() {
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     }
 
-    LaunchedEffect(Unit) {
-        val profile = db.userProfileDao().getProfile()
-        dailyGoal = (profile?.dailyGoalProteinGrams ?: 120).toFloat()
+    // ✅ function to reload from Room
+    fun loadDashboardData() {
+        scope.launch {
+            val profile = db.userProfileDao().getProfile()
+            dailyGoal = (profile?.dailyGoalProteinGrams ?: 120).toFloat()
 
-        consumedToday = (db.mealDao().getTotalProteinForDate(today) ?: 0).toFloat()
-        mealsLoggedToday = db.mealDao().getMealsForDate(today).size
+            consumedToday = (db.mealDao().getTotalProteinForDate(today) ?: 0).toFloat()
+            mealsLoggedToday = db.mealDao().getMealsForDate(today).size
+        }
+    }
+
+    // ✅ load initially
+    LaunchedEffect(Unit) {
+        loadDashboardData()
+    }
+
+    // ✅ launcher to open AddMealActivity and refresh when it finishes
+    val addMealLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            loadDashboardData() // ✅ refresh after saving meal
+        }
     }
 
     val progress = if (dailyGoal > 0f) (consumedToday / dailyGoal).coerceIn(0f, 1f) else 0f
@@ -122,7 +134,7 @@ fun DashboardScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            //  TOP BAR: Title + Camera button
+            // TOP BAR
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -155,14 +167,13 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Main daily protein card
+            // Main card
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(text = "Today's Protein", style = MaterialTheme.typography.titleMedium)
-
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
@@ -172,7 +183,6 @@ fun DashboardScreen() {
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
-
                     Text(
                         text = "of ${dailyGoal.toInt()} g goal",
                         fontSize = 16.sp,
@@ -180,7 +190,6 @@ fun DashboardScreen() {
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-
                     LinearProgressIndicator(
                         progress = progress,
                         modifier = Modifier
@@ -189,7 +198,6 @@ fun DashboardScreen() {
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
-
                     Text(
                         text = "${(progress * 100).toInt()}% of goal reached",
                         fontSize = 14.sp,
@@ -200,7 +208,7 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick stats row
+            // Quick stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -251,7 +259,7 @@ fun DashboardScreen() {
             Button(
                 onClick = {
                     val intent = Intent(context, AddMealActivity::class.java)
-                    context.startActivity(intent)
+                    addMealLauncher.launch(intent) //  launch for result
                 },
                 modifier = Modifier
                     .fillMaxWidth()
