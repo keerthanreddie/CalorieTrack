@@ -1,7 +1,9 @@
 package com.example.calorietrack
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -28,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.room.Meal
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 class MealHistoryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,6 +51,7 @@ fun MealHistoryScreen() {
     val context = LocalContext.current
     val activity = context as? Activity
     val db = remember { CalorieTrackDatabase.getInstance(context) }
+    val scope = rememberCoroutineScope()
 
     val gradient = Brush.verticalGradient(
         colors = listOf(
@@ -58,8 +63,25 @@ fun MealHistoryScreen() {
 
     var meals by remember { mutableStateOf<List<Meal>>(emptyList()) }
 
+    // ✅ Load meals ONLY for the current Firebase user
+    fun loadMealsForUser() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Toast.makeText(context, "Please sign in again.", Toast.LENGTH_SHORT).show()
+            val intent = Intent(context, SigninActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            context.startActivity(intent)
+            activity?.finish()
+            return
+        }
+
+        scope.launch {
+            meals = db.mealDao().getAllMealsForUser(userId)
+        }
+    }
+
     LaunchedEffect(Unit) {
-        meals = db.mealDao().getAllMeals()
+        loadMealsForUser()
     }
 
     Box(

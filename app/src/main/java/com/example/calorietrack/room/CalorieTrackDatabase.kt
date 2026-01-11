@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Meal::class, UserProfile::class],
-    version = 1,
+    version = 2, // ✅ bumped version because schema changed (userId added)
     exportSchema = false
 )
 abstract class CalorieTrackDatabase : RoomDatabase() {
@@ -25,7 +25,11 @@ abstract class CalorieTrackDatabase : RoomDatabase() {
                     context.applicationContext,
                     CalorieTrackDatabase::class.java,
                     "calorie_track_db"
-                ).build().also { INSTANCE = it }
+                )
+                    //  Prevents crash after schema change (clears old local data)
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { INSTANCE = it }
             }
         }
     }

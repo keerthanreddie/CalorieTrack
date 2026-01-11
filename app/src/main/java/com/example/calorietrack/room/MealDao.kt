@@ -10,12 +10,19 @@ interface MealDao {
     @Insert
     suspend fun insertMeal(meal: Meal)
 
-    @Query("SELECT * FROM meals ORDER BY date DESC, id DESC")
-    suspend fun getAllMeals(): List<Meal>
+    // ✅ Meal History for a specific user only
+    @Query("SELECT * FROM meals WHERE userId = :userId ORDER BY date DESC, id DESC")
+    suspend fun getAllMealsForUser(userId: String): List<Meal>
 
-    @Query("SELECT * FROM meals WHERE date = :date ORDER BY id DESC")
-    suspend fun getMealsForDate(date: String): List<Meal>
+    // ✅ Meals for a specific user on a specific date
+    @Query("SELECT * FROM meals WHERE userId = :userId AND date = :date ORDER BY id DESC")
+    suspend fun getMealsForUserDate(userId: String, date: String): List<Meal>
 
-    @Query("SELECT SUM(proteinGrams) FROM meals WHERE date = :date")
-    suspend fun getTotalProteinForDate(date: String): Int?
+    // ✅ Total protein for a specific user on a specific date
+    @Query("SELECT SUM(proteinGrams) FROM meals WHERE userId = :userId AND date = :date")
+    suspend fun getTotalProteinForUserDate(userId: String, date: String): Int?
+
+    // OPTIONAL: useful if you want "Clear my meals" in future
+    @Query("DELETE FROM meals WHERE userId = :userId")
+    suspend fun deleteMealsForUser(userId: String)
 }

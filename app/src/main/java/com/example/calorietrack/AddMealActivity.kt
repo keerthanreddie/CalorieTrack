@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.room.Meal
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -60,6 +61,7 @@ fun AddMealScreen() {
     var name by remember { mutableStateOf("") }
     var proteinText by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
 
     val db = remember { CalorieTrackDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
@@ -83,7 +85,10 @@ fun AddMealScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { activity?.finish() }) {
+                IconButton(
+                    onClick = { activity?.finish() },
+                    enabled = !isSaving
+                ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Back",
@@ -110,7 +115,8 @@ fun AddMealScreen() {
                 },
                 label = { Text("Meal name") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                enabled = !isSaving
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -118,14 +124,14 @@ fun AddMealScreen() {
             OutlinedTextField(
                 value = proteinText,
                 onValueChange = {
-                    // keep only digits (optional safety)
                     proteinText = it.filter { ch -> ch.isDigit() }
                     errorText = null
                 },
                 label = { Text("Protein (g)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                enabled = !isSaving
             )
 
             if (errorText != null) {
@@ -147,33 +153,59 @@ fun AddMealScreen() {
                         name.trim().isEmpty() -> {
                             errorText = "Please enter a meal name."
                         }
+
                         protein == null || protein <= 0 -> {
                             errorText = "Please enter a valid protein amount greater than 0."
                         }
+
                         else -> {
+                            val userId = FirebaseAuth.getInstance().currentUser?.uid
+                            if (userId == null) {
+                                errorText = "You are not signed in. Please sign in again."
+                                return@Button
+                            }
+
+                            isSaving = true
                             scope.launch {
-                                db.mealDao().insertMeal(
-                                    Meal(
-                                        name = name.trim(),
-                                        proteinGrams = protein,
-                                        date = today
+                                try {
+                                    db.mealDao().insertMeal(
+                                        Meal(
+                                            userId = userId,        // ✅ key change (per-user data)
+                                            name = name.trim(),
+                                            proteinGrams = protein,
+                                            date = today
+                                        )
                                     )
-                                )
 
-                                Toast.makeText(context, "Meal saved ", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Meal saved ✅", Toast.LENGTH_SHORT).show()
 
-                                //  IMPORTANT: tell Dashboard to refresh
-                                activity?.setResult(Activity.RESULT_OK)
-                                activity?.finish()
+                                    // ✅ IMPORTANT: tell Dashboard to refresh
+                                    activity?.setResult(Activity.RESULT_OK)
+                                    activity?.finish()
+
+                                } catch (e: Exception) {
+                                    isSaving = false
+                                    errorText = e.localizedMessage ?: "Failed to save meal."
+                                }
                             }
                         }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(48.dp),
+                enabled = !isSaving
             ) {
-                Text("Save Meal")
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Saving...")
+                } else {
+                    Text("Save Meal")
+                }
             }
         }
     }

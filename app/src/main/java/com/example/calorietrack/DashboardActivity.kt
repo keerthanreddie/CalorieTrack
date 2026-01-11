@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.calorietrack.room.CalorieTrackDatabase
 import com.example.calorietrack.ui.theme.CalorieTrackTheme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -50,8 +52,37 @@ class DashboardActivity : ComponentActivity() {
 @Composable
 fun DashboardScreen() {
     val context = LocalContext.current
+    val activity = context as? Activity
     val db = remember { CalorieTrackDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
+    val auth = remember { FirebaseAuth.getInstance() }
+
+    // ✅ Get logged in user id
+    val userId = remember { auth.currentUser?.uid }
+
+    // If not logged in, go back to SigninActivity
+    LaunchedEffect(userId) {
+        if (userId == null) {
+            Toast.makeText(context, "Please sign in again.", Toast.LENGTH_SHORT).show()
+            val intent = Intent(context, SigninActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            context.startActivity(intent)
+            activity?.finish()
+        }
+    }
+
+    // ✅ Logout confirmation dialog state
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    fun logoutNow() {
+        auth.signOut()
+        Toast.makeText(context, "Logged out ✅", Toast.LENGTH_SHORT).show()
+
+        val intent = Intent(context, SigninActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        context.startActivity(intent)
+        activity?.finish()
+    }
 
     // ✅ Permission launcher (camera)
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -86,14 +117,16 @@ fun DashboardScreen() {
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     }
 
-    // ✅ function to reload from Room
+    // ✅ function to reload from Room for CURRENT USER
     fun loadDashboardData() {
+        val uid = auth.currentUser?.uid ?: return
+
         scope.launch {
             val profile = db.userProfileDao().getProfile()
             dailyGoal = (profile?.dailyGoalProteinGrams ?: 120).toFloat()
 
-            consumedToday = (db.mealDao().getTotalProteinForDate(today) ?: 0).toFloat()
-            mealsLoggedToday = db.mealDao().getMealsForDate(today).size
+            consumedToday = (db.mealDao().getTotalProteinForUserDate(uid, today) ?: 0).toFloat()
+            mealsLoggedToday = db.mealDao().getMealsForUserDate(uid, today).size
         }
     }
 
@@ -107,7 +140,7 @@ fun DashboardScreen() {
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            loadDashboardData() // ✅ refresh after saving meal
+            loadDashboardData()
         }
     }
 
@@ -122,6 +155,26 @@ fun DashboardScreen() {
         )
     )
 
+    // ✅ Logout dialog UI
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to log out?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        logoutNow()
+                    }
+                ) { Text("Logout") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -134,7 +187,7 @@ fun DashboardScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // TOP BAR
+            // TOP BAR (Title + Camera + Logout)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -156,12 +209,22 @@ fun DashboardScreen() {
                     )
                 }
 
-                IconButton(onClick = { requestCameraPermission() }) {
-                    Icon(
-                        imageVector = Icons.Filled.CameraAlt,
-                        contentDescription = "Camera",
-                        tint = Color.White
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { requestCameraPermission() }) {
+                        Icon(
+                            imageVector = Icons.Filled.CameraAlt,
+                            contentDescription = "Camera",
+                            tint = Color.White
+                        )
+                    }
+
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.ExitToApp,
+                            contentDescription = "Logout",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 
@@ -259,7 +322,7 @@ fun DashboardScreen() {
             Button(
                 onClick = {
                     val intent = Intent(context, AddMealActivity::class.java)
-                    addMealLauncher.launch(intent) //  launch for result
+                    addMealLauncher.launch(intent)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
